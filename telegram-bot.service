@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram 双向机器人
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/telegram-bot
+ExecStart=/opt/telegram-bot/venv/bin/python /opt/telegram-bot/bot.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

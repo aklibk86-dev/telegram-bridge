@@ -1,0 +1,13 @@
+# 敏感文件
+users.json
+bot.log
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# 系统
+.DS_Store
+Thumbs.db

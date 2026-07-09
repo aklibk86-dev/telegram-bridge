@@ -1,0 +1,18 @@
+{
+    "bot_token": "YOUR_BOT_TOKEN_HERE",
+    "proxy": "",
+    "admin_username": "YOUR_ADMIN_USERNAME",
+    "auto_reply": "✅ 您的消息已收到，我们会尽快回复您！",
+    "welcome_message": "👋 欢迎使用机器人！\n\n您可以直接发送消息，我们会收到并回复。",
+    "keywords": {
+        "你好": "您好！很高兴见到您 😊",
+        "帮助": "您可以发送任何消息，我们会收到并回复。",
+        "谢谢": "不客气！有需要随时找我 😊",
+        "再见": "再见！期待下次与您交流 👋"
+    },
+    "inline_buttons": [],
+    "auto_reply_buttons": [],
+    "welcome_buttons": [],
+    "broadcast_buttons": [],
+    "reply_keyboard": []
+}
