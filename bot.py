@@ -26,6 +26,7 @@ from telegram import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
+    BotCommand,
 )
 from telegram.ext import (
     Application,
@@ -223,10 +224,16 @@ def track_forward(message_id: int, user_chat_id: int):
     while len(forward_tracker) > MAX_TRACKER_SIZE:
         forward_tracker.popitem(last=False)
 
+DEFAULT_ADMIN_KEYBOARD = [
+    ["⚙️ 设置", "📊 统计", "👥 用户"],
+    ["📢 广播", "❓ 帮助", "🆔 我的ID"],
+]
+
 def get_reply_keyboard():
+    """获取底部键盘：优先使用自定义配置，无配置时使用管理员默认键盘"""
     kb = get_reply_keyboard_config()
     if not kb:
-        return None
+        kb = DEFAULT_ADMIN_KEYBOARD
     return ReplyKeyboardMarkup(kb, resize_keyboard=True)
 
 def build_kb_from_buttons(buttons):
@@ -247,9 +254,30 @@ def build_kb_from_buttons(buttons):
         keyboard.append(row)
     return InlineKeyboardMarkup(keyboard) if keyboard else None
 
-def build_inline_keyboard():
-    """构建 /menu 用的内联键盘"""
-    return build_kb_from_buttons(get_buttons("menu"))
+def build_inline_keyboard(is_admin_user=False):
+    """构建 /menu 用的内联键盘（管理员含功能按钮 + 自定义按钮）"""
+    keyboard = []
+    if is_admin_user:
+        keyboard.extend([
+            [InlineKeyboardButton("⚙️ 设置", callback_data="menu_settings"),
+             InlineKeyboardButton("📊 统计", callback_data="menu_stats")],
+            [InlineKeyboardButton("👥 用户列表", callback_data="menu_users"),
+             InlineKeyboardButton("📢 广播", callback_data="menu_broadcast")],
+            [InlineKeyboardButton("❓ 帮助", callback_data="menu_help")],
+        ])
+    # 追加用户自定义的 URL 按钮
+    custom_btns = get_buttons("menu")
+    if custom_btns:
+        row = []
+        for btn in custom_btns:
+            if "url" in btn:
+                row.append(InlineKeyboardButton(text=btn["text"], url=btn["url"]))
+            if len(row) >= 2:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+    return InlineKeyboardMarkup(keyboard) if keyboard else None
 
 def build_auto_reply_kb():
     return build_kb_from_buttons(get_buttons("auto_reply"))
@@ -379,7 +407,7 @@ async def cmd_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_admin(update):
         await update.message.reply_text(
             "📋 <b>功能菜单</b>\n\n请点击下方按钮选择功能：",
-            reply_markup=build_inline_keyboard(), parse_mode=ParseMode.HTML,
+            reply_markup=build_inline_keyboard(is_admin_user=True), parse_mode=ParseMode.HTML,
         )
     else:
         await update.message.reply_text("💬 请直接发送消息与我们对话。")
@@ -532,8 +560,32 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "show_menu":
         await query.message.reply_text(
             "📋 <b>功能菜单</b>\n\n请点击下方按钮：",
-            reply_markup=build_inline_keyboard(), parse_mode=ParseMode.HTML,
+            reply_markup=build_inline_keyboard(is_admin_user=is_admin(update)), parse_mode=ParseMode.HTML,
         )
+        return
+
+    # === 菜单功能按钮（管理员）===
+    if data == "menu_settings":
+        if is_admin(update):
+            await cmd_settings(update, context)
+        return
+    if data == "menu_stats":
+        if is_admin(update):
+            await cmd_stats(update, context)
+        return
+    if data == "menu_users":
+        if is_admin(update):
+            await cmd_users(update, context)
+        return
+    if data == "menu_broadcast":
+        if is_admin(update):
+            await query.message.reply_text(
+                "📢 <b>广播通知</b>\n\n用法：<code>/broadcast 消息内容</code>",
+                parse_mode=ParseMode.HTML,
+            )
+        return
+    if data == "menu_help":
+        await cmd_help(update, context)
         return
     if data == "about":
         await query.message.reply_text(
@@ -886,7 +938,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if data == "kb_default":
         cfg = get_config()
-        cfg["reply_keyboard"] = [["📋 菜单", "❓ 帮助"], ["🌐 官网", "📞 联系客服"]]
+        cfg["reply_keyboard"] = DEFAULT_ADMIN_KEYBOARD
         save_config(cfg)
         await query.message.reply_text("🔄 已恢复默认底部键盘。")
 
@@ -1196,11 +1248,29 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- 底部键盘按钮（仅管理员）---
     if is_admin(update):
-        if text in ("📋 菜单", "菜单"):
-            await cmd_menu(update, context)
+        if text in ("⚙️ 设置", "设置"):
+            await cmd_settings(update, context)
+            return
+        if text in ("📊 统计", "统计"):
+            await cmd_stats(update, context)
+            return
+        if text in ("👥 用户", "用户", "👥 用户列表"):
+            await cmd_users(update, context)
+            return
+        if text in ("📢 广播", "广播"):
+            await update.message.reply_text(
+                "📢 <b>广播通知</b>\n\n用法：<code>/broadcast 消息内容</code>",
+                parse_mode=ParseMode.HTML,
+            )
             return
         if text in ("❓ 帮助", "帮助"):
             await cmd_help(update, context)
+            return
+        if text in ("🆔 我的ID", "我的ID", "ID"):
+            await cmd_id(update, context)
+            return
+        if text in ("📋 菜单", "菜单"):
+            await cmd_menu(update, context)
             return
         if text in ("🌐 官网", "官网"):
             await msg.reply_text("🌐 官网地址：https://t.me/MTBTQ")
@@ -1316,6 +1386,23 @@ async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 # ==================== 主函数 ====================
 
+async def post_init(application: Application):
+    """启动后注册命令菜单（输入 / 时显示的命令列表）"""
+    commands = [
+        BotCommand("start", "启动机器人"),
+        BotCommand("menu", "功能菜单"),
+        BotCommand("help", "查看帮助"),
+        BotCommand("settings", "设置面板（管理员）"),
+        BotCommand("broadcast", "广播消息（管理员）"),
+        BotCommand("stats", "用户统计（管理员）"),
+        BotCommand("users", "用户列表（管理员）"),
+        BotCommand("reply", "回复用户（管理员）"),
+        BotCommand("id", "查看我的ID"),
+        BotCommand("cancel", "取消当前操作"),
+    ]
+    await application.bot.set_my_commands(commands)
+    logger.info("✅ 命令菜单已注册")
+
 def main():
     if not BOT_TOKEN:
         print("❌ 错误：config.json 中未设置 bot_token")
@@ -1332,6 +1419,7 @@ def main():
         builder = builder.request(req).get_updates_request(get_updates_req)
         logger.info(f"代理已设置: {PROXY_URL} (超时: 30s)")
 
+    builder = builder.post_init(post_init)
     application = builder.build()
 
     application.add_handler(CommandHandler("start", cmd_start))
@@ -1346,11 +1434,7 @@ def main():
     application.add_handler(CommandHandler("cancel", cmd_cancel))
 
     application.add_handler(CallbackQueryHandler(on_callback))
-    application.add_handler(MessageHandler(
-        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.DOCUMENT |
-         filters.AUDIO | filters.VOICE | filters.ANIMATION | filters.STICKER) & ~filters.COMMAND,
-        on_message
-    ))
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, on_message))
     application.add_error_handler(on_error)
 
     logger.info("=" * 50)

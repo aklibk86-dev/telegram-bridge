@@ -3,7 +3,7 @@
   "proxy": "",
   "admin_username": "YOUR_ADMIN_USERNAME",
   "auto_reply": "✅ 您的消息已收到，我们会尽快回复您！",
-  "auto_reply_delete_time": 0,
+  "auto_reply_delete_time": 3,
   "welcome_message": "👋 欢迎使用机器人！\n\n您可以直接发送消息，我们会收到并回复。",
   "keywords": {
     "帮助": "您可以发送任何消息，我们会收到并回复。",
