@@ -88,6 +88,10 @@ def get_config():
 def get_auto_reply():
     return get_config().get("auto_reply", "")
 
+def get_auto_reply_delete_time():
+    """获取自动回复删除时间（秒），0表示不自动删除"""
+    return get_config().get("auto_reply_delete_time", 0)
+
 def get_welcome_message():
     return get_config().get("welcome_message", "👋 欢迎使用！")
 
@@ -310,8 +314,16 @@ def message_settings_kb(scope):
          InlineKeyboardButton("➕ 添加URL按钮", callback_data=f"msg_add_url_{scope}")],
         [InlineKeyboardButton("➖ 删除按钮", callback_data=f"msg_del_btn_{scope}"),
          InlineKeyboardButton("🗑️ 清空按钮", callback_data=f"msg_clear_btn_{scope}")],
-        [InlineKeyboardButton("⬅️ 返回设置", callback_data="set_back")],
     ]
+    # 自动回复额外支持设置自动删除时间
+    if scope == "auto_reply":
+        del_time = get_auto_reply_delete_time()
+        if del_time > 0:
+            time_label = f"⏱️ 自动删除：{del_time}秒后"
+        else:
+            time_label = "⏱️ 设置自动删除时间"
+        keyboard.insert(2, [InlineKeyboardButton(time_label, callback_data="set_ar_del_time")])
+    keyboard.append([InlineKeyboardButton("⬅️ 返回设置", callback_data="set_back")])
     return InlineKeyboardMarkup(keyboard)
 
 def keyboard_kb():
@@ -552,10 +564,13 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "set_view":
         cfg = get_config()
+        del_time = cfg.get("auto_reply_delete_time", 0)
+        del_str = f"{del_time}秒后自动删除" if del_time > 0 else "未开启"
         text = (
             "📋 <b>当前配置</b>\n\n"
             f"<b>✏️ 自动回复：</b>\n<code>{cfg.get('auto_reply', '(空)')}</code>\n"
-            f"  🔘 按钮：{len(get_buttons('auto_reply'))} 个\n\n"
+            f"  🔘 按钮：{len(get_buttons('auto_reply'))} 个\n"
+            f"  ⏱️ 自动删除：{del_str}\n\n"
             f"<b>👋 欢迎消息：</b>\n<code>{cfg.get('welcome_message', '(空)')}</code>\n"
             f"  🔘 按钮：{len(get_buttons('welcome'))} 个\n\n"
             f"<b>🔑 关键词数量：</b>{len(cfg.get('keywords', {}))} 个\n"
@@ -570,13 +585,28 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # === 自动回复设置 ===
     if data == "set_auto_reply":
         ar = get_auto_reply()
+        del_time = get_auto_reply_delete_time()
+        del_info = f"\n⏱️ 自动删除：{del_time}秒后" if del_time > 0 else "\n⏱️ 自动删除：未开启"
         context.user_data.pop("awaiting", None)
         await query.message.edit_text(
             f"✏️ <b>自动回复设置</b>\n\n"
             f"<b>当前文字：</b>\n<code>{ar or '(空)'}</code>\n\n"
-            f"🔘 当前附带 {len(get_buttons('auto_reply'))} 个内联按钮\n\n"
-            "可以编辑文字内容，也可以管理内联按钮。",
+            f"🔘 当前附带 {len(get_buttons('auto_reply'))} 个内联按钮\n"
+            f"{del_info}\n\n"
+            "可以编辑文字内容，管理内联按钮，或设置自动删除时间。",
             reply_markup=message_settings_kb("auto_reply"), parse_mode=ParseMode.HTML,
+        )
+        return
+
+    # === 自动回复删除时间设置 ===
+    if data == "set_ar_del_time":
+        current = get_auto_reply_delete_time()
+        context.user_data["awaiting"] = "ar_del_time"
+        await query.message.reply_text(
+            f"⏱️ <b>设置自动回复删除时间</b>\n\n"
+            f"当前：{current}秒（0=不自动删除）\n\n"
+            f"请发送秒数（0=关闭自动删除，1-86400之间）：",
+            parse_mode=ParseMode.HTML,
         )
         return
 
@@ -880,6 +910,26 @@ async def handle_setting_input(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("awaiting", None)
         return True
 
+    # --- 自动回复删除时间 ---
+    if awaiting == "ar_del_time":
+        try:
+            seconds = int(text)
+            if seconds < 0:
+                await update.message.reply_text("❌ 不能为负数，请重新输入。")
+            elif seconds > 86400:
+                await update.message.reply_text("❌ 最大为86400秒（24小时），请重新输入。")
+            else:
+                cfg["auto_reply_delete_time"] = seconds
+                save_config(cfg)
+                if seconds == 0:
+                    await update.message.reply_text("✅ 已关闭自动回复自动删除。")
+                else:
+                    await update.message.reply_text(f"✅ 自动回复将在发送后 {seconds} 秒自动删除。")
+        except ValueError:
+            await update.message.reply_text("❌ 请发送数字（秒数），0=关闭。")
+        context.user_data.pop("awaiting", None)
+        return True
+
     # --- 欢迎消息 ---
     if awaiting == "welcome":
         cfg["welcome_message"] = text
@@ -1176,7 +1226,17 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 2. 自动回复（附带按钮）
     auto_reply = get_auto_reply()
     if not matched and auto_reply:
-        await msg.reply_text(auto_reply, reply_markup=build_auto_reply_kb())
+        ar_msg = await msg.reply_text(auto_reply, reply_markup=build_auto_reply_kb())
+        # 定时删除自动回复消息
+        del_time = get_auto_reply_delete_time()
+        if del_time > 0 and ar_msg:
+            async def _delete_ar_message(m, delay):
+                await asyncio.sleep(delay)
+                try:
+                    await m.delete()
+                except Exception:
+                    pass
+            asyncio.create_task(_delete_ar_message(ar_msg, del_time))
 
     # 3. 转发给管理员
     users_data = load_users()

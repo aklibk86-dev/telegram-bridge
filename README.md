@@ -187,6 +187,7 @@ data/
 **自动回复设置**
 - 编辑自动回复文字
 - 为自动回复添加/删除/清空 URL 内联按钮
+- 设置自动回复消息的自动删除时间（0=关闭，1-86400秒）
 
 **欢迎消息设置**
 - 编辑欢迎消息文字
@@ -222,6 +223,7 @@ data/
 | `proxy` | string | 代理地址，留空则直连 |
 | `admin_username` | string | 管理员用户名（不带 @） |
 | `auto_reply` | string | 自动回复内容 |
+| `auto_reply_delete_time` | int | 自动回复删除时间（秒），0=不自动删除 |
 | `welcome_message` | string | 欢迎消息内容 |
 | `keywords` | object | 关键词字典，键为触发词，值为 `{reply, buttons}` |
 | `inline_buttons` | array | `/menu` 菜单的内联按钮 |
