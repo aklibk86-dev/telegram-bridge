@@ -41,8 +41,13 @@ from telegram.constants import ParseMode
 # ==================== 路径配置 ====================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Docker 环境使用 /app/data 目录持久化数据，本地环境使用项目目录
+DATA_DIR = os.environ.get("DATA_DIR", BASE_DIR)
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
-USERS_FILE = os.path.join(BASE_DIR, "users.json")
+USERS_FILE = os.path.join(DATA_DIR, "users.json")
+LOG_FILE = os.path.join(DATA_DIR, "bot.log")
 
 # ==================== JSON 工具 ====================
 
@@ -161,7 +166,7 @@ logging.basicConfig(
     level=logging.INFO,
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(os.path.join(BASE_DIR, "bot.log"), encoding="utf-8"),
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
     ],
 )
 logger = logging.getLogger("TelegramBot")

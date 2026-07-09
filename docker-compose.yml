@@ -1,0 +1,13 @@
+services:
+  telebridge:
+    build: .
+    container_name: telebridge
+    restart: always
+    volumes:
+      # 持久化数据（用户数据、日志、配置）
+      - ./data:/app/data
+      # 挂载配置文件（修改后 restart 容器即可生效）
+      - ./config.json:/app/config.json:ro
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1

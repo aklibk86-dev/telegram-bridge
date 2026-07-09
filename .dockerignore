@@ -1,0 +1,14 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+venv
+.venv
+*.log
+users.json
+start.bat
+start.sh
+deploy.sh
+telegram-bot.service
+README.md
+data

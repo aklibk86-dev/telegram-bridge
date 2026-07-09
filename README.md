@@ -21,7 +21,7 @@
 ## 项目结构
 
 ```
-telegram-bot/
+telebridge/
 ├── bot.py              # 主程序（全部功能）
 ├── config.json         # 配置文件（运行时可动态修改）
 ├── requirements.txt    # Python 依赖
@@ -29,6 +29,9 @@ telegram-bot/
 ├── start.sh            # Linux 手动启动脚本
 ├── deploy.sh           # Linux 一键部署脚本
 ├── telegram-bot.service # systemd 服务配置
+├── Dockerfile          # Docker 镜像构建文件
+├── docker-compose.yml  # Docker Compose 编排文件
+├── .dockerignore
 ├── .gitignore
 └── README.md           # 本文档
 ```
@@ -122,6 +125,40 @@ systemctl stop telegram-bot      # 停止
 systemctl restart telegram-bot   # 重启
 journalctl -u telegram-bot -f    # 实时日志
 ```
+
+## Docker 部署
+
+### 快速启动
+
+```bash
+# 1. 编辑配置文件
+vim config.json    # 替换 bot_token 和 admin_username
+
+# 2. 构建并启动
+docker compose up -d --build
+```
+
+### 管理命令
+
+```bash
+docker compose up -d             # 启动
+docker compose down              # 停止
+docker compose restart           # 重启（修改 config.json 后执行）
+docker compose logs -f           # 查看实时日志
+docker compose ps                # 查看状态
+```
+
+### 数据持久化
+
+Docker 部署的数据存储在 `./data/` 目录：
+
+```
+data/
+├── users.json    # 用户数据
+└── bot.log       # 运行日志
+```
+
+修改 `config.json` 后执行 `docker compose restart` 即可生效。
 
 ## 使用指南
 
