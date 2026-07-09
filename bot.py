@@ -1152,12 +1152,41 @@ async def handle_setting_input(update: Update, context: ContextTypes.DEFAULT_TYP
 
 # ==================== 消息处理 ====================
 
+async def send_to_user(bot, chat_id, msg, prefix="💬 <b>管理员回复</b>\n\n"):
+    """将消息（文字或媒体）发送给用户，支持图片/视频/文档/音频/语音/动图/贴纸"""
+    caption = msg.caption or ""
+    if msg.photo:
+        await bot.send_photo(chat_id=chat_id, photo=msg.photo[-1].file_id,
+                             caption=f"{prefix}{caption}", parse_mode=ParseMode.HTML)
+    elif msg.video:
+        await bot.send_video(chat_id=chat_id, video=msg.video.file_id,
+                             caption=f"{prefix}{caption}", parse_mode=ParseMode.HTML)
+    elif msg.document:
+        await bot.send_document(chat_id=chat_id, document=msg.document.file_id,
+                                caption=f"{prefix}{caption}", parse_mode=ParseMode.HTML)
+    elif msg.audio:
+        await bot.send_audio(chat_id=chat_id, audio=msg.audio.file_id,
+                             caption=f"{prefix}{caption}", parse_mode=ParseMode.HTML)
+    elif msg.voice:
+        await bot.send_voice(chat_id=chat_id, voice=msg.voice.file_id,
+                             caption=f"{prefix}{caption}", parse_mode=ParseMode.HTML)
+    elif msg.animation:
+        await bot.send_animation(chat_id=chat_id, animation=msg.animation.file_id,
+                                 caption=f"{prefix}{caption}", parse_mode=ParseMode.HTML)
+    elif msg.sticker:
+        await bot.send_sticker(chat_id=chat_id, sticker=msg.sticker.file_id)
+    else:
+        await bot.send_message(chat_id=chat_id, text=f"{prefix}{msg.text or ''}",
+                               parse_mode=ParseMode.HTML)
+
 async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     register_user(update)
     user = update.effective_user
     chat = update.effective_chat
     msg = update.message
-    text = (msg.text or "").strip()
+    text = (msg.text or msg.caption or "").strip()
+    has_media = bool(msg.photo or msg.video or msg.document or msg.audio or
+                     msg.voice or msg.animation or msg.sticker)
 
     # --- 管理员设置模式 ---
     if is_admin(update) and context.user_data.get("awaiting"):
@@ -1187,11 +1216,7 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if replied_id in forward_tracker:
                 target_uid = forward_tracker[replied_id]
                 try:
-                    await context.bot.send_message(
-                        chat_id=target_uid,
-                        text=f"💬 <b>管理员回复</b>\n\n{text}",
-                        parse_mode=ParseMode.HTML,
-                    )
+                    await send_to_user(context.bot, target_uid, msg)
                     await msg.reply_text("✅ 已回复用户。")
                 except Exception as e:
                     await msg.reply_text(f"❌ 回复失败：{e}")
@@ -1210,18 +1235,19 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- 普通用户消息处理 ---
 
-    # 1. 关键词匹配（优先）
+    # 1. 关键词匹配（优先，仅对有文字的消息生效）
     matched = False
-    keywords = get_keywords()
-    for keyword in keywords:
-        if keyword.lower() in text.lower():
-            reply = get_kw_reply(keywords, keyword)
-            kw_btns = get_kw_buttons(keywords, keyword)
-            kb = build_kb_from_buttons(kw_btns)
-            if reply:
-                await msg.reply_text(reply, reply_markup=kb)
-            matched = True
-            break
+    if text:
+        keywords = get_keywords()
+        for keyword in keywords:
+            if keyword.lower() in text.lower():
+                reply = get_kw_reply(keywords, keyword)
+                kw_btns = get_kw_buttons(keywords, keyword)
+                kb = build_kb_from_buttons(kw_btns)
+                if reply:
+                    await msg.reply_text(reply, reply_markup=kb)
+                matched = True
+                break
 
     # 2. 自动回复（附带按钮）
     auto_reply = get_auto_reply()
@@ -1249,12 +1275,28 @@ async def on_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             info_parts.append(f"ID: <code>{user.id}</code>")
             info_parts.append(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             info_text = " | ".join(info_parts)
-            sent = await context.bot.send_message(
-                chat_id=admin_id,
-                text=f"{info_text}\n\n💬 <b>消息：</b>\n{text}",
-                parse_mode=ParseMode.HTML,
-            )
-            track_forward(sent.message_id, chat.id)
+            if has_media:
+                # 媒体消息：先转发原消息，再发送用户信息
+                forwarded = await context.bot.forward_message(
+                    chat_id=admin_id,
+                    from_chat_id=chat.id,
+                    message_id=msg.message_id,
+                )
+                track_forward(forwarded.message_id, chat.id)
+                info_sent = await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=info_text,
+                    parse_mode=ParseMode.HTML,
+                )
+                track_forward(info_sent.message_id, chat.id)
+            else:
+                # 文字消息：合并为一条消息
+                sent = await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=f"{info_text}\n\n💬 <b>消息：</b>\n{text}",
+                    parse_mode=ParseMode.HTML,
+                )
+                track_forward(sent.message_id, chat.id)
         except Exception as e:
             logger.error(f"转发消息给管理员失败: {e}")
     else:
@@ -1304,7 +1346,11 @@ def main():
     application.add_handler(CommandHandler("cancel", cmd_cancel))
 
     application.add_handler(CallbackQueryHandler(on_callback))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
+    application.add_handler(MessageHandler(
+        (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.DOCUMENT |
+         filters.AUDIO | filters.VOICE | filters.ANIMATION | filters.STICKER) & ~filters.COMMAND,
+        on_message
+    ))
     application.add_error_handler(on_error)
 
     logger.info("=" * 50)
