@@ -11,6 +11,11 @@ venv/
 # Docker
 data/
 
+# Node.js / VitePress
+node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
 # 系统
 .DS_Store
 Thumbs.db
