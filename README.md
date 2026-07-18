@@ -26,7 +26,8 @@ telebridge/
 ├── config.json         # 配置文件（运行时可动态修改）
 ├── requirements.txt    # Python 依赖
 ├── install.sh          # Linux/macOS 一键安装脚本
-├── install.bat         # Windows 一键安装脚本
+├── install.ps1         # Windows 一键安装脚本（PowerShell）
+├── install.bat         # Windows 一键安装脚本（批处理，双击运行）
 ├── start.bat           # Windows 启动脚本
 ├── start.sh            # Linux 手动启动脚本
 ├── deploy.sh           # Linux 一键部署脚本（本地部署）
@@ -73,13 +74,17 @@ bash install.sh --no-service --no-start
 
 ### Windows
 
-下载 [install.bat](https://raw.githubusercontent.com/aklibk86-dev/telegram-bridge/main/install.bat) 后双击运行，或在 PowerShell 中执行：
+在 PowerShell 中执行（推荐）：
 
 ```powershell
-irm https://raw.githubusercontent.com/aklibk86-dev/telegram-bridge/main/install.bat | cmd
+irm https://raw.githubusercontent.com/aklibk86-dev/telegram-bridge/main/install.ps1 | iex
 ```
 
-脚本会自动检查 Python 环境、下载代码、创建虚拟环境、安装依赖，并引导你完成 Bot Token、管理员用户名、代理地址的配置。安装完成后机器人会自动启动。
+或下载后运行：
+- **PowerShell 脚本**：[install.ps1](https://raw.githubusercontent.com/aklibk86-dev/telegram-bridge/main/install.ps1) — `powershell -ExecutionPolicy Bypass -File install.ps1`
+- **批处理脚本**：[install.bat](https://raw.githubusercontent.com/aklibk86-dev/telegram-bridge/main/install.bat) — 双击运行
+
+脚本会自动检查 Python 环境、下载代码（无 git 时自动回退 ZIP 下载）、创建虚拟环境、安装依赖，并引导你完成 Bot Token、管理员用户名、代理地址的配置。安装完成后机器人会自动启动。
 
 > **前提条件**：已安装 Python 3.8+（[下载地址](https://www.python.org/downloads/)，安装时勾选 "Add Python to PATH"）。Linux 下若未安装 Python/git，脚本会尝试自动安装。
 
