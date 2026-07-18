@@ -4,10 +4,10 @@ export default defineConfig({
   title: 'TeleBridge',
   description: 'Telegram 双向沟通机器人 / Two-way Telegram Bridge Bot',
   lang: 'zh-CN',
-  base: '/telegram-bridge/',
+  base: '/',
 
   head: [
-    ['link', { rel: 'icon', href: '/telegram-bridge/favicon.ico' }],
+    ['link', { rel: 'icon', href: '/logo.svg' }],
   ],
 
   themeConfig: {
