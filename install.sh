@@ -20,8 +20,39 @@ set -e
 
 REPO_URL="https://github.com/aklibk86-dev/telegram-bridge.git"
 REPO_BRANCH="main"
+SCRIPT_RAW_URL="https://raw.githubusercontent.com/aklibk86-dev/telegram-bridge/main/install.sh"
 SERVICE_NAME="telegram-bot"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+
+# ---------- 管道模式处理 ----------
+# 当通过 curl|bash 管道执行时，bash 的 stdin 是管道（脚本内容），
+# 交互式 read 无法从终端读取用户输入。
+# 解决方案：检测到管道模式时，把脚本下载到临时文件，
+# 用 /dev/tty 作为 stdin 重新执行，这样既能完整读取脚本，又能交互输入。
+if [ ! -t 0 ] && [ -p /dev/stdin ]; then
+    TMP_SCRIPT="$(mktemp /tmp/telebridge-install.XXXXXX.sh 2>/dev/null || mktemp)"
+    trap 'rm -f "$TMP_SCRIPT"' EXIT INT TERM
+    # 尝试用 curl 下载，失败则用 wget
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -fsSL "$SCRIPT_RAW_URL" -o "$TMP_SCRIPT"; then
+            echo "[ERROR] 下载安装脚本失败，请检查网络连接。" >&2
+            rm -f "$TMP_SCRIPT"
+            exit 1
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if ! wget -qO "$TMP_SCRIPT" "$SCRIPT_RAW_URL"; then
+            echo "[ERROR] 下载安装脚本失败，请检查网络连接。" >&2
+            rm -f "$TMP_SCRIPT"
+            exit 1
+        fi
+    else
+        echo "[ERROR] 未找到 curl 或 wget，无法继续。" >&2
+        rm -f "$TMP_SCRIPT"
+        exit 1
+    fi
+    # 用 /dev/tty 作为 stdin 重新执行，并把命令行参数透传
+    exec bash "$TMP_SCRIPT" "$@" </dev/tty
+fi
 
 # 默认参数
 INSTALL_DIR="${HOME}/telegram-bridge"
@@ -63,13 +94,6 @@ ok()    { printf "${C_GREEN}[OK]${C_RESET} %s\n"    "$*"; }
 warn()  { printf "${C_YELLOW}[WARN]${C_RESET} %s\n" "$*"; }
 err()   { printf "${C_RED}[ERROR]${C_RESET} %s\n"   "$*" >&2; }
 step()  { printf "\n${C_CYAN}=== %s ===${C_RESET}\n" "$*"; }
-
-# 当通过 curl|bash 管道执行时，stdin 被占用，
-# 将交互式输入重定向到 /dev/tty，使 read 命令能正常工作
-TTY_DEV="/dev/tty"
-if [ ! -t 0 ] && [ -e "$TTY_DEV" ] && [ -r "$TTY_DEV" ]; then
-    exec 0<"$TTY_DEV"
-fi
 
 # ---------- 横幅 ----------
 cat <<'EOF'
